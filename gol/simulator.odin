@@ -3,8 +3,13 @@ package gol
 import "core:slice"
 import "core:mem"
 import "core:fmt"
+import "core:sync"
+import "core:container/queue"
 
 import vk "vendor:vulkan"
+
+queue_lock: sync.Mutex // Todo - lockfree
+global_queue: queue.Queue(Simulator_Event)
 
 Simulator :: struct {
     width, height: int,
@@ -13,6 +18,10 @@ Simulator :: struct {
     writer: WriterHandle,
     step: int,
     world_buffers: [2]Texture,
+    mouse_position: [2]int,
+    current_zoom: f64,
+    current_vertices: [4][2]f32,
+    current_translates: [2]f32,
 }
 
 simulator_verts := [?][2]f32{
@@ -42,7 +51,7 @@ simulator_create :: proc(world: World) -> (simulator: Simulator) {
     front := renderer_create_texture(global_renderer, image)
     back := renderer_create_texture(global_renderer, image)
     sampler := renderer_create_texture_sampler(global_renderer)
-    simulator = Simulator{width = world.width, height = world.height, sampler = sampler, world_buffers = {front, back}}
+    simulator = Simulator{width = world.width, height = world.height, sampler = sampler, world_buffers = {front, back}, current_zoom = 100, current_vertices = simulator_verts}
     simulator_make_descriptors(&simulator)
     load_vertices(&simulator)
 
@@ -62,7 +71,71 @@ simulator_init_from_thread :: proc(simulator: ^Simulator) {
     simulator.writer = register_writer()
 }
 
+global_button_pressed: bool
+mouse_pos_previous: [2]int
+mouse_pos_now: [2]int
+
 simulator_step :: proc(simulator: ^Simulator) {
+    {
+        sync.mutex_guard(&queue_lock)
+        event: Simulator_Event
+        mouse_pos_diff: [2]f32
+        for queue.len(global_queue) > 0 {
+            new_event := queue.pop_front(&global_queue)
+            event.zoom_offset += new_event.zoom_offset * 10
+            if new_event.button_down {
+                global_button_pressed = true
+                event.button_down = true
+                mouse_pos_previous = simulator.mouse_position
+                mouse_pos_now = mouse_pos_previous
+            } else if new_event.button_up {
+                global_button_pressed = false
+                event.button_up = true
+                simulator.mouse_position = mouse_pos_now
+                int_diff := mouse_pos_now - mouse_pos_previous
+                mouse_pos_diff = [2]f32{f32(int_diff.x), f32(int_diff.y)} / [2]f32{f32(simulator.width), f32(simulator.height)}
+                simulator.current_translates += mouse_pos_diff
+                mouse_pos_previous = {}
+                mouse_pos_now = {}
+            } else if global_button_pressed && new_event.mouse_position != {} {
+                mouse_pos_previous = mouse_pos_now
+                mouse_pos_now = new_event.mouse_position
+            }
+
+            if global_button_pressed {
+                int_diff := mouse_pos_now - mouse_pos_previous
+                mouse_pos_diff = [2]f32{f32(int_diff.x), f32(int_diff.y)} / [2]f32{f32(simulator.width), f32(simulator.height)}
+                simulator.current_translates += mouse_pos_diff
+            }
+
+        }
+        if event != {} {
+            simulator.current_zoom += event.zoom_offset
+            if simulator.current_zoom < 100.0 {
+                simulator.current_zoom = 100.0
+            }
+            translates: [4][2]f32 = simulator.current_translates
+            simulator.current_vertices = simulator_verts * (f32(simulator.current_zoom / 100.0)) + translates
+
+
+            fmt.println("new vertices:", simulator.current_vertices, "new zoom:", simulator.current_zoom, "from mouse pos:", simulator.mouse_position)
+    
+            staging_buffer, staging_memory := create_buffer(global_renderer.physical_device, global_renderer.device, vk.DeviceSize(size_of(simulator.current_vertices)), {.TRANSFER_SRC}, {.HOST_VISIBLE, .HOST_COHERENT})
+            defer destroy_buffer(global_renderer.device, staging_buffer, staging_memory)
+    
+            staging_data: rawptr
+            vk.MapMemory(global_renderer.device, staging_memory, 0, vk.DeviceSize(size_of(simulator.current_vertices)), nil, &staging_data)
+            as_bytes := slice.to_bytes(simulator.current_vertices[:])
+            mem.copy(staging_data, raw_data(as_bytes), len(as_bytes))
+            vk.UnmapMemory(global_renderer.device, staging_memory)
+    
+            copy_buffer(global_renderer.device, staging_buffer, simulator.display.buffer, []vk.BufferCopy{
+                {
+                    size = vk.DeviceSize(len(as_bytes)),
+                },
+            })
+        }
+    }
 
     buffer, compute_buffer, image_index := renderer_next_command_buffer(global_renderer, simulator.writer, simulator.step)
 
@@ -285,6 +358,10 @@ simulator_step :: proc(simulator: ^Simulator) {
     }))
 
     simulator.step += 1
+}
+
+simulator_add_event :: proc(event: Simulator_Event) {
+
 }
 
 vk_assert :: proc(result: vk.Result, loc := #caller_location) {

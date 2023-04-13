@@ -35,7 +35,7 @@ main :: proc() {
         thread that is going to do the write
         3. Will put those buffers into an array and those buffers can be looked up using a WriteHandle
     */
-    world := gol.world_create(160, 160)
+    world := gol.world_create(1600, 1600)
     defer gol.world_destroy(world)
 
     pattern := gol.world_create(13, 13, context.temp_allocator)
@@ -59,8 +59,8 @@ main :: proc() {
     gol.world_set_many(&pattern, positions)
 
     // Add a bunch of pattern into world
-    for i in 0..<1000 {
-        gol.world_add(&world, pattern, {(i * 5) % world.width, (i * 10) % world.height })
+    for i in 0..<10000 {
+        gol.world_add(&world, pattern, {(i * 5 + i) % world.width, (i * 10 + i / 2) % world.height })
         gol.world_add(&world, pattern, {(i * 15) % world.width, (i * 10) % world.height })
     }
 
@@ -73,13 +73,15 @@ main :: proc() {
 
         for !global_stop {
             gol.simulator_step(simulator)
-            time.sleep(100 * time.Millisecond)
+            free_all(context.temp_allocator)
+            time.sleep(10 * time.Millisecond)
         }
     })
     simulator_thread.user_args[0] = &simulator
     thread.start(simulator_thread)
 
     for !global_stop {
+        free_all(context.temp_allocator)
         glfw.WaitEvents()
         if glfw.WindowShouldClose(gol.global_renderer.window) {
             global_stop = true
