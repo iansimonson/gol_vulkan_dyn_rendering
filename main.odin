@@ -37,25 +37,38 @@ main :: proc() {
     */
     writer := gol.register_writer()
 
-    world := gol.world_create(16, 16)
+    world := gol.world_create(160, 160)
     defer gol.world_destroy(world)
 
     pattern := gol.world_create(13, 13, context.temp_allocator)
+    // positions := [][2]int{
+    //     {2, 0}, {3, 0}, {4, 0}, {8, 0}, {9, 0}, {10, 0},
+    //     {0, 2}, {5, 2}, {7, 2}, {12, 2},
+    //     {0, 3}, {5, 3}, {7, 3}, {12, 3},
+    //     {0, 4}, {5, 4}, {7, 4}, {12, 4},
+    //     {2, 5}, {3, 5}, {4, 5}, {8, 5}, {9, 5}, {10, 5},
+    //     {2, 7}, {3, 7}, {4, 7}, {8, 7}, {9, 7}, {10, 7},
+    //     {0, 8}, {5, 8}, {7, 8}, {12, 8},
+    //     {0, 9}, {5, 9}, {7, 9}, {12, 9},
+    //     {0, 10}, {5, 10}, {7, 10}, {12, 10},
+    //     {2, 12}, {3, 12}, {4, 12}, {8, 12}, {9, 12}, {10, 12},
+    // }
     positions := [][2]int{
-        {2, 0}, {3, 0}, {4, 0}, {8, 0}, {9, 0}, {10, 0},
-        {0, 2}, {5, 2}, {7, 2}, {12, 2},
-        {0, 3}, {5, 3}, {7, 3}, {12, 3},
-        {0, 4}, {5, 4}, {7, 4}, {12, 4},
-        {2, 5}, {3, 5}, {4, 5}, {8, 5}, {9, 5}, {10, 5},
-        {2, 7}, {3, 7}, {4, 7}, {8, 7}, {9, 7}, {10, 7},
-        {0, 8}, {5, 8}, {7, 8}, {12, 8},
-        {0, 9}, {5, 9}, {7, 9}, {12, 9},
-        {0, 10}, {5, 10}, {7, 10}, {12, 10},
-        {2, 12}, {3, 12}, {4, 12}, {8, 12}, {9, 12}, {10, 12},
+        {1, 0},
+        {2, 1},
+        {0, 2}, {1, 2}, {2, 2},
     }
     gol.world_set_many(&pattern, positions)
 
     gol.world_add(&world, pattern, {1, 1})
+    // gol.world_add(&world, pattern, {30, 10})
+    // gol.world_add(&world, pattern, {100, 100})
+    // gol.world_add(&world, pattern, {200, 100})
+
+    for i in 0..<1000 {
+        gol.world_add(&world, pattern, {(i * 5) % world.width, (i * 10) % world.height })
+        gol.world_add(&world, pattern, {(i * 15) % world.width, (i * 10) % world.height })
+    }
 
 
     simulator := gol.simulator_create(world)
@@ -67,7 +80,7 @@ main :: proc() {
 
         for !global_stop {
             gol.simulator_step(simulator)
-            time.sleep(250 * time.Millisecond)
+            time.sleep(100 * time.Millisecond)
         }
     })
     simulator_thread.user_args[0] = &simulator

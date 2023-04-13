@@ -64,6 +64,12 @@ global_render_init :: proc() {
     instance_extension := get_required_instance_extensions()
     defer delete(instance_extension)
 
+    enabled := []vk.ValidationFeatureEnableEXT{.DEBUG_PRINTF}
+    features := vk.ValidationFeaturesEXT{
+        sType = .VALIDATION_FEATURES_EXT,
+        enabledValidationFeatureCount = 1,
+        pEnabledValidationFeatures = raw_data(enabled),
+    }
     if vk.CreateInstance(&vk.InstanceCreateInfo{
         sType = .INSTANCE_CREATE_INFO,
         enabledExtensionCount = u32(len(instance_extension)),
@@ -78,6 +84,7 @@ global_render_init :: proc() {
         },
         enabledLayerCount = u32(len(validation_layers)),
         ppEnabledLayerNames = raw_data(validation_layers),
+        pNext = &features,
     }, nil, &global_renderer.instance) != .SUCCESS {
         panic("Couldn not create instance")
     }
@@ -94,7 +101,7 @@ global_render_init :: proc() {
 
     vk.CreateDebugUtilsMessengerEXT(global_renderer.instance, &vk.DebugUtilsMessengerCreateInfoEXT{
         sType = .DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        messageSeverity = {.INFO, .WARNING, .ERROR},
+        messageSeverity = {.VERBOSE, .INFO, .WARNING, .ERROR},
         messageType = {.GENERAL, .VALIDATION, .PERFORMANCE},
         pfnUserCallback = debug_callback,
     }, nil, &global_renderer.debug_messenger)
