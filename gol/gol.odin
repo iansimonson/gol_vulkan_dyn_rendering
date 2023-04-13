@@ -3,6 +3,14 @@ package gol
 import "core:mem"
 import "core:fmt"
 
+init :: proc() {
+    global_render_init()
+}
+
+destroy :: proc() {
+    global_render_destroy()
+}
+
 World :: struct {
     width, height: int,
     grid: [dynamic]bool,
@@ -72,6 +80,9 @@ world_count_neighbors_alive :: proc(world: ^World, pos: [2]int) -> (alive: int) 
     return
 }
 
+// Runs 1 step of the GOL simulaton on the given World
+// and writes it out to another world object
+// useful for generating starting seeds?
 world_step :: proc(current_world, next_world: ^World) {
     world_assert_size(current_world, next_world)
     for i in 0..<current_world.height {

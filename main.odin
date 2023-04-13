@@ -6,9 +6,9 @@ import "core:thread"
 import "core:runtime"
 
 main :: proc() {
-    // gol.init()
 
-    fmt.println("yay")
+    gol.init()
+    defer gol.destroy()
 
     /*
         Ignore for a second that it's Vulkan under the covers. We need:
@@ -48,16 +48,29 @@ main :: proc() {
 
     gol.world_add(&world, pattern, {3, 3})
 
-    gol.world_print(world)
 
-    next_world := gol.world_create(16, 16)
-    defer gol.world_destroy(next_world)
+    simulator := gol.simulator_create(world)
+    simulator_thread := thread.create(proc(t: ^thread.Thread) {
+        // do stuff with the simulator
+    })
+    thread.start(simulator_thread)
+    defer thread.destroy(simulator_thread)
 
-    current := &world
-    next := &next_world
-    for i in 0..<6 {
-        gol.world_step(current, next)
-        gol.world_print(next^)
-        current, next = next, current
-    }
+    /*
+    what to do from here:
+    upload the World into a "simulator" which will simulate and render out to vulkan.
+    Just run simulator_run()?
+
+    After it's working:
+    input handled as commands put into a queue
+    Get the texture and convert to a World
+    update the state and reencode as a texture / reupload to the gpu
+    continue simulating
+
+    Simulate at x frames per second (configurable? maybe imgui later)
+
+    Buttons for play/pause/reset simulation
+    */
+
+    fmt.println("YAY DONE!")
 }

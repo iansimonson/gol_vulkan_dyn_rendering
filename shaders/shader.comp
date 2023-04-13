@@ -1,0 +1,52 @@
+#version 450
+
+const int rules[18] = int[18](0, 0, 0, 1, 0, 0, 0, 0, 0,
+                                0, 0, 1, 1, 0, 0, 0, 0, 0);
+
+layout(binding = 1, rgba8) uniform readonly image2D inputCells;
+layout(binding = 2, rgba8) uniform writeonly image2D outputCells;
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+int value_at_pos(ivec2 pos) {
+    return imageLoad(inputCells, pos).r > 0.4 ? 1 : 0;
+}
+
+void get_neighbors(ivec2 pos, ivec2 grid_size, inout ivec2 neighbors[8]) {
+    neighbors = ivec2[8](
+        (pos + ivec2(-1, -1) + grid_size) % grid_size,
+        (pos + ivec2(0, -1) + grid_size) % grid_size,
+        (pos + ivec2(1, -1) + grid_size) % grid_size,
+        (pos + ivec2(-1, 0) + grid_size) % grid_size,
+        (pos + ivec2(1, 0) + grid_size) % grid_size,
+        (pos + ivec2(-1, 1) + grid_size) % grid_size,
+        (pos + ivec2(0, 1) + grid_size) % grid_size,
+        (pos + ivec2(1, 1) + grid_size) % grid_size
+    );
+}
+
+void main() {
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    float pixel = imageLoad(inputCells, pos).r;
+    ivec2 dim = imageSize(inputCells)
+    ivec2 neighbors[8];
+    get_neighbors(pos, dim, neighbors);
+
+    int summed_neighbors = 
+        value_at_pos(neighbors[0]) +
+        value_at_pos(neighbors[1]) +
+        value_at_pos(neighbors[2]) +
+        value_at_pos(neighbors[3]) +
+        value_at_pos(neighbors[4]) +
+        value_at_pos(neighbors[5]) +
+        value_at_pos(neighbors[6]) +
+        value_at_pos(neighbors[7]);
+
+    int my_val = value_at_pos(pos);
+
+    int rule_value = ((my_val) * 9) + summed_neighbors;
+    float return_value = float(rules[rule_value]);
+    vec4 result = {return_value, return_value, return_value, 1};
+
+    imageStore(outputCells, pos, result);
+}
