@@ -663,7 +663,6 @@ renderer_next_command_buffer :: proc(renderer: Renderer, writer: WriterHandle, s
         panic("Couldn't get swapchain")
     }
     
-    fmt.println("IMAGE INDEX:", image_index, "CURRENT_FRAME:", current_frame, "STEP:", step)
     assert(image_index == u32(current_frame))
     vk.ResetFences(renderer.device, 1, &renderer.syncs.inflight_fences[current_frame])
 

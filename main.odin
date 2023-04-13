@@ -31,17 +31,15 @@ main :: proc() {
         Some additional points:
         1. Need to run renderer / render loops on a separate thread as GLFW will block the main thread
         when resizing. Unfortunate but it's just how it is
-        2. We still want to be able to submit commands from the main thread so we need command buffers for each
+        2. We still want to be able to submit commands from the main thread so we need command buffers/pools for each
         thread that is going to do the write
         3. Will put those buffers into an array and those buffers can be looked up using a WriteHandle
     */
-    writer := gol.register_writer()
-
     world := gol.world_create(160, 160)
     defer gol.world_destroy(world)
 
     pattern := gol.world_create(13, 13, context.temp_allocator)
-    // positions := [][2]int{
+    // positions := [][2]int{ // Pulsar
     //     {2, 0}, {3, 0}, {4, 0}, {8, 0}, {9, 0}, {10, 0},
     //     {0, 2}, {5, 2}, {7, 2}, {12, 2},
     //     {0, 3}, {5, 3}, {7, 3}, {12, 3},
@@ -53,23 +51,18 @@ main :: proc() {
     //     {0, 10}, {5, 10}, {7, 10}, {12, 10},
     //     {2, 12}, {3, 12}, {4, 12}, {8, 12}, {9, 12}, {10, 12},
     // }
-    positions := [][2]int{
+    positions := [][2]int{ // Glider
         {1, 0},
         {2, 1},
         {0, 2}, {1, 2}, {2, 2},
     }
     gol.world_set_many(&pattern, positions)
 
-    gol.world_add(&world, pattern, {1, 1})
-    // gol.world_add(&world, pattern, {30, 10})
-    // gol.world_add(&world, pattern, {100, 100})
-    // gol.world_add(&world, pattern, {200, 100})
-
+    // Add a bunch of pattern into world
     for i in 0..<1000 {
         gol.world_add(&world, pattern, {(i * 5) % world.width, (i * 10) % world.height })
         gol.world_add(&world, pattern, {(i * 15) % world.width, (i * 10) % world.height })
     }
-
 
     simulator := gol.simulator_create(world)
     defer gol.simulator_destroy(simulator)
@@ -95,10 +88,6 @@ main :: proc() {
     thread.destroy(simulator_thread)
 
     /*
-    what to do from here:
-    upload the World into a "simulator" which will simulate and render out to vulkan.
-    Just run simulator_run()?
-
     After it's working:
     input handled as commands put into a queue
     Get the texture and convert to a World
@@ -110,5 +99,4 @@ main :: proc() {
     Buttons for play/pause/reset simulation
     */
 
-    fmt.println("YAY DONE!")
 }

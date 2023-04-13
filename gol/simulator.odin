@@ -120,7 +120,6 @@ simulator_step :: proc(simulator: ^Simulator) {
 	vk.CmdBindDescriptorSets(compute_buffer, .COMPUTE, global_renderer.compute_pipeline.layout, 0, 1, &global_renderer.descriptors.compute_sets[current], 0, nil)
 	vk.CmdDispatch(compute_buffer, u32(simulator.width) / 16, u32(simulator.height) / 16, 1)
 
-    fmt.println("YAY")
     vk_assert(vk.EndCommandBuffer(compute_buffer))
 
     compute_dst_stage_mask := vk.PipelineStageFlags{.COMPUTE_SHADER}
@@ -135,8 +134,6 @@ simulator_step :: proc(simulator: ^Simulator) {
             signalSemaphoreCount = 1,
             pSignalSemaphores = &global_renderer.syncs.compute_sems[current],
         }, {}))
-
-    fmt.println("WE GOT DA COMPUTE!")
 
 
     vk_assert(vk.BeginCommandBuffer(buffer, &vk.CommandBufferBeginInfo{
@@ -274,8 +271,6 @@ simulator_step :: proc(simulator: ^Simulator) {
             signalSemaphoreCount = 1,
             pSignalSemaphores = &global_renderer.syncs.render_finishes[current],
     }, global_renderer.syncs.inflight_fences[current]))
-
-    fmt.println("WE GOT DA RENDER")
 
     vk_assert(vk.QueuePresentKHR(global_renderer.main_queue, &vk.PresentInfoKHR{
         sType = .PRESENT_INFO_KHR,
