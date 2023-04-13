@@ -53,6 +53,8 @@ simulator_destroy :: proc(simulator: Simulator) {
     defer renderer_destroy_texture(global_renderer, simulator.world_buffers[0])
     defer renderer_destroy_texture(global_renderer, simulator.world_buffers[1])
     defer destroy_buffer(global_renderer.device, simulator.display.buffer, simulator.display.memory)
+    defer renderer_destroy_texture_sampler(global_renderer, simulator.sampler)
+    defer vk.DeviceWaitIdle(global_renderer.device)
 }
 
 // MUST BE CALLED FROM THREAD WHERE THE SIMULATOR WILL RUN

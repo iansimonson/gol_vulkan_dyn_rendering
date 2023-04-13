@@ -536,13 +536,47 @@ global_render_destroy :: proc() {
     defer glfw.Terminate()
     defer glfw.DestroyWindow(global_renderer.window)
     defer vk.DestroyInstance(global_renderer.instance, nil)
+    defer vk.DestroySurfaceKHR(global_renderer.instance, global_renderer.surface, nil)
+    defer vk.DestroyDebugUtilsMessengerEXT(global_renderer.instance, global_renderer.debug_messenger, nil)
     defer vk.DestroyDevice(global_renderer.device, nil)
     defer vk.DestroySwapchainKHR(global_renderer.device, global_renderer.swapchain.swapchain, nil)
-    defer delete(global_renderer.swapchain.images)
+    defer {
+        defer delete(global_renderer.swapchain.images)
+        for image_view in global_renderer.swapchain.image_views {
+            vk.DestroyImageView(global_renderer.device, image_view, nil)
+        }
+    }
     defer delete(global_renderer.swapchain.image_views)
     defer vk.DestroyDescriptorSetLayout(global_renderer.device, global_renderer.descriptors.layout, nil)
+    defer vk.DestroyDescriptorSetLayout(global_renderer.device, global_renderer.descriptors.compute_layout, nil)
     defer vk.DestroyPipelineLayout(global_renderer.device, global_renderer.pipeline.layout, nil)
+    defer vk.DestroyPipelineLayout(global_renderer.device, global_renderer.compute_pipeline.layout, nil)
     defer vk.DestroyPipeline(global_renderer.device, global_renderer.pipeline.pipeline, nil)
+    defer vk.DestroyPipeline(global_renderer.device, global_renderer.compute_pipeline.pipeline, nil)
+
+    defer vk.DestroyDescriptorPool(global_renderer.device, global_renderer.descriptors.pool, nil)
+
+    defer {
+        for i in 0..<MAX_FRAMES_IN_FLIGHT {
+            vk.DestroySemaphore(global_renderer.device, global_renderer.syncs.compute_sems[i], nil)
+            vk.DestroySemaphore(global_renderer.device, global_renderer.syncs.image_avails[i], nil)
+            vk.DestroySemaphore(global_renderer.device, global_renderer.syncs.render_finishes[i], nil)
+            vk.DestroyFence(global_renderer.device, global_renderer.syncs.inflight_fences[i], nil)
+        }
+    }
+
+    defer {
+        for pool, i in global_command_pools {
+            vk.FreeCommandBuffers(global_renderer.device, pool, len(global_command_buffers[i]), raw_data(global_command_buffers[i][:]))
+            vk.DestroyCommandPool(global_renderer.device, pool, nil)
+        }
+        for pool, i in global_compute_command_pools {
+            vk.FreeCommandBuffers(global_renderer.device, pool, len(global_compute_command_buffers[i]), raw_data(global_compute_command_buffers[i][:]))
+            vk.DestroyCommandPool(global_renderer.device, pool, nil)
+        }
+    }
+
+    defer vk.DeviceWaitIdle(global_renderer.device)
 }
 
 renderer_create_texture :: proc(renderer: Renderer, image: Image) -> Texture {
@@ -648,6 +682,10 @@ renderer_create_texture_sampler :: proc(renderer: Renderer) -> (sampler: vk.Samp
     }
 
     return
+}
+
+renderer_destroy_texture_sampler :: proc(renderer: Renderer, sampler: vk.Sampler) {
+    vk.DestroySampler(renderer.device, sampler, nil)
 }
 
 renderer_next_command_buffer :: proc(renderer: Renderer, writer: WriterHandle, step: int) -> (command_buffer, compute_command_buffer: vk.CommandBuffer, image_index: u32) {
@@ -1007,27 +1045,22 @@ debug_callback :: proc "system" (
 	p_user_data: rawptr,
 ) -> b32 {
 	context = runtime.default_context()
-	// if message_severity & {.WARNING, .ERROR} != nil {
-		fmt.println()
-        fmt.printf("MESSAGE: (")
-        for ms in vk.DebugUtilsMessageSeverityFlagEXT {
-            if ms in message_severity {
-                fmt.printf("%v, ", ms)
-            }
+    fmt.println()
+    fmt.printf("MESSAGE: (")
+    for ms in vk.DebugUtilsMessageSeverityFlagEXT {
+        if ms in message_severity {
+            fmt.printf("%v, ", ms)
         }
-        for t in vk.DebugUtilsMessageTypeFlagEXT {
-            if t in message_type {
-                fmt.printf("%v", t)
-            }
-        }
-        fmt.printf(")\n")
-        fmt.println("---------------")
-		fmt.printf("%#v\n", p_callback_data.pMessage)
-        fmt.println()
-	// }
-
-    if .ERROR in message_severity {
-        panic("stop on first error")
     }
+    for t in vk.DebugUtilsMessageTypeFlagEXT {
+        if t in message_type {
+            fmt.printf("%v", t)
+        }
+    }
+    fmt.printf(")\n")
+    fmt.println("---------------")
+    fmt.printf("%#v\n", p_callback_data.pMessage)
+    fmt.println()
+
 	return false
 }
