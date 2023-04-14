@@ -66,7 +66,7 @@ main :: proc() {
         gol.world_add(&world, glider_pattern, {(i * 15) % world.width, (i * 10) % world.height })
         gol.world_add(&world, glider_pattern, {(i * 35) % world.width, (i * 12) % world.height })
 
-        gol.world_add(&world, glider_pattern, {(i * 40 + i) % world.width, (i * 10 + i / 2) % world.height })
+        gol.world_add(&world, pulsar_pattern, {(i * 40 + i) % world.width, (i * 10 + i / 2) % world.height })
     }
 
     simulator := gol.simulator_create(world)
