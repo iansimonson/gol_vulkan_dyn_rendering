@@ -35,7 +35,7 @@ main :: proc() {
         thread that is going to do the write
         3. Will put those buffers into an array and those buffers can be looked up using a WriteHandle
     */
-    world := gol.world_create(1600, 1600)
+    world := gol.world_create(16000, 16000)
     defer gol.world_destroy(world)
 
     glider_pattern := gol.world_create(4, 4, context.temp_allocator)

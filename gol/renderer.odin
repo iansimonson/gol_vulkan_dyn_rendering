@@ -1071,29 +1071,30 @@ debug_callback :: proc "system" (
 	return false
 }
 
-Simulator_Event :: struct {
-    zoom_offset: f64,
-    button_down: bool,
-    button_up: bool,
-    mouse_position: [2]int,
+Zoom_Event :: f64
+Drag_Start :: distinct struct {}
+Drag_End :: distinct struct {}
+Mouse_Pos :: [2]int
+
+Simulator_Event :: union {
+    Zoom_Event,
+    Drag_Start,
+    Drag_End,
+    Mouse_Pos,
 }
 
 scroll_callback :: proc "c" (window: glfw.WindowHandle, xoffset, yoffset: f64) {
     context = runtime.default_context()
     fmt.println("scroll(", xoffset, yoffset, ")")
     sync.mutex_guard(&queue_lock)
-    queue.push(&global_queue, Simulator_Event{
-        zoom_offset = yoffset,
-    })
+    queue.push(&global_queue, yoffset)
 }
 
 cursor_pos_callback :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
     context = runtime.default_context()
     fmt.println("cursor(", xpos, ypos, ")")
     sync.mutex_guard(&queue_lock)
-    queue.push(&global_queue, Simulator_Event{
-        mouse_position = {int(xpos), int(ypos)}
-    })
+    queue.push(&global_queue, [2]int{int(xpos), int(ypos)})
 }
 
 mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
@@ -1103,14 +1104,10 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
     if button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS {
         fmt.println("ADDED")
         sync.mutex_guard(&queue_lock)
-        queue.push(&global_queue, Simulator_Event{
-            button_down = true,
-        })
+        queue.push(&global_queue, Drag_Start{})
     } else if button == glfw.MOUSE_BUTTON_LEFT && action == glfw.RELEASE {
         fmt.println("RELEASED!")
         sync.mutex_guard(&queue_lock)
-        queue.push(&global_queue, Simulator_Event{
-            button_up = true,
-        })
+        queue.push(&global_queue, Drag_End{})
     }
 }

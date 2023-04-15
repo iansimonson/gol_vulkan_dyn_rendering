@@ -71,52 +71,81 @@ simulator_init_from_thread :: proc(simulator: ^Simulator) {
     simulator.writer = register_writer()
 }
 
-global_button_pressed: bool
-mouse_pos_previous: [2]int
-mouse_pos_now: [2]int
+drag_button_pressed: bool
+mouse_pos_start: [2]int
+mouse_pos_end: [2]int
 
 simulator_step :: proc(simulator: ^Simulator) {
     {
         sync.mutex_guard(&queue_lock)
-        event: Simulator_Event
-        mouse_pos_diff: [2]f32
+        updated: bool
         for queue.len(global_queue) > 0 {
+            updated = true
             new_event := queue.pop_front(&global_queue)
-            event.zoom_offset += new_event.zoom_offset * 10
-            if new_event.button_down {
-                global_button_pressed = true
-                event.button_down = true
-                mouse_pos_previous = simulator.mouse_position
-                mouse_pos_now = mouse_pos_previous
-            } else if new_event.button_up {
-                global_button_pressed = false
-                event.button_up = true
-                simulator.mouse_position = mouse_pos_now
-                int_diff := mouse_pos_now - mouse_pos_previous
-                mouse_pos_diff = [2]f32{f32(int_diff.x), f32(int_diff.y)} / [2]f32{f32(simulator.width), f32(simulator.height)}
-                simulator.current_translates += mouse_pos_diff
-                mouse_pos_previous = {}
-                mouse_pos_now = {}
-            } else if global_button_pressed && new_event.mouse_position != {} {
-                mouse_pos_previous = mouse_pos_now
-                mouse_pos_now = new_event.mouse_position
+            switch event in new_event {
+            case Zoom_Event:
+                if drag_button_pressed {
+                    drag_button_pressed = false
+                    int_diff := mouse_pos_end - mouse_pos_start
+                    simulator.current_translates += [2]f32{f32(int_diff.x)/f32(simulator.width), f32(int_diff.y)/f32(simulator.height)}
+                    mouse_pos_start, mouse_pos_end = {}, {}
+                }
+                // zoom will be +/- 1, so lets do 10% at a time
+                // then try to make it linear rather than asymptotic by making it scale with current zoom
+                old_zoom := f32(simulator.current_zoom / 100.0)
+                simulator.current_zoom += ((event * 10) * simulator.current_zoom / 100.0)
+                simulator.current_zoom = max(simulator.current_zoom, 100.0)
+                new_zoom := f32(simulator.current_zoom / 100.0)
+                simulator.current_translates = new_zoom * (simulator.current_translates / old_zoom)
+            case Drag_Start:
+                drag_button_pressed = true
+                mouse_pos_start = simulator.mouse_position
+            case Drag_End:
+                assert(drag_button_pressed)
+                drag_button_pressed = false
+                int_diff := mouse_pos_end - mouse_pos_start
+                simulator.current_translates += [2]f32{f32(int_diff.x)/f32(simulator.width), f32(int_diff.y)/f32(simulator.height)} * f32(simulator.current_zoom) / 100.0
+                mouse_pos_start, mouse_pos_end = {}, {}
+            case Mouse_Pos:
+                simulator.mouse_position = event
+                if drag_button_pressed {
+                    mouse_pos_end = event
+                }
             }
-
-            if global_button_pressed {
-                int_diff := mouse_pos_now - mouse_pos_previous
-                mouse_pos_diff = [2]f32{f32(int_diff.x), f32(int_diff.y)} / [2]f32{f32(simulator.width), f32(simulator.height)}
-                simulator.current_translates += mouse_pos_diff
-            }
-
         }
-        if event != {} {
-            simulator.current_zoom += event.zoom_offset
-            if simulator.current_zoom < 100.0 {
-                simulator.current_zoom = 100.0
-            }
+        if updated {
             translates: [4][2]f32 = simulator.current_translates
+            // raw translate
             simulator.current_vertices = simulator_verts * (f32(simulator.current_zoom / 100.0)) + translates
+            // snap to edges
+            lengths := [2]f32{simulator.current_vertices[1].x - simulator.current_vertices[0].x, simulator.current_vertices[2].y - simulator.current_vertices[1].y}
+            fmt.println("lengths:", lengths)
+            top_left_snap := [2]f32{min(simulator.current_vertices[0].x, -1.0), min(simulator.current_vertices[0].y, -1.0)}
+            top_right_snap := [2]f32{max(simulator.current_vertices[1].x, 1.0), min(simulator.current_vertices[1].y, -1.0)}
+            bottom_right_snap := [2]f32{max(simulator.current_vertices[2].x, 1.0), max(simulator.current_vertices[2].y, 1.0)}
+            bottom_left_snap := [2]f32{min(simulator.current_vertices[3].x, -1.0), max(simulator.current_vertices[3].y, 1.0)}
 
+            if top_left_snap != simulator.current_vertices[0] {
+                simulator.current_vertices[0] = top_left_snap
+                simulator.current_vertices[1] = [2]f32{top_left_snap.x + lengths.x, top_left_snap.y}
+                simulator.current_vertices[2] = [2]f32{top_left_snap.x + lengths.x, top_left_snap.y + lengths.y}
+                simulator.current_vertices[3] = [2]f32{top_left_snap.x, top_left_snap.y + lengths.y}
+            } else if top_right_snap != simulator.current_vertices[1] {
+                simulator.current_vertices[1] = top_right_snap
+                simulator.current_vertices[0] = [2]f32{top_right_snap.x - lengths.x, top_right_snap.y}
+                simulator.current_vertices[2] = [2]f32{top_right_snap.x, top_right_snap.y + lengths.y}
+                simulator.current_vertices[3] = [2]f32{top_right_snap.x - lengths.x, top_right_snap.y + lengths.y}
+            } else if bottom_right_snap != simulator.current_vertices[2] {
+                simulator.current_vertices[2] = bottom_right_snap
+                simulator.current_vertices[0] = [2]f32{bottom_right_snap.x - lengths.x, bottom_right_snap.y - lengths.y}
+                simulator.current_vertices[1] = [2]f32{bottom_right_snap.x, bottom_right_snap.y - lengths.y}
+                simulator.current_vertices[3] = [2]f32{bottom_right_snap.x - lengths.x, bottom_right_snap.y}
+            } else if bottom_left_snap != simulator.current_vertices[3] {
+                simulator.current_vertices[3] = bottom_left_snap
+                simulator.current_vertices[0] = [2]f32{bottom_left_snap.x, bottom_left_snap.y - lengths.y}
+                simulator.current_vertices[1] = [2]f32{bottom_left_snap.x + lengths.x, bottom_left_snap.y - lengths.y}
+                simulator.current_vertices[2] = [2]f32{bottom_left_snap.x + lengths.x, bottom_left_snap.y}
+            }
 
             fmt.println("new vertices:", simulator.current_vertices, "new zoom:", simulator.current_zoom, "from mouse pos:", simulator.mouse_position)
     
