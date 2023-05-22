@@ -35,7 +35,7 @@ main :: proc() {
         thread that is going to do the write
         3. Will put those buffers into an array and those buffers can be looked up using a WriteHandle
     */
-    world := gol.world_create(16000, 16000)
+    world := gol.world_create(32768, 32768)
     defer gol.world_destroy(world)
 
     glider_pattern := gol.world_create(4, 4, context.temp_allocator)
@@ -61,7 +61,7 @@ main :: proc() {
     gol.world_set_many(&pulsar_pattern, pulsar_positions)
 
     // Add a bunch of pattern into world
-    for i in 0..<10000 {
+    for i in 0..<40000 {
         gol.world_add(&world, glider_pattern, {(i * 5 + i) % world.width, (i * 10 + i / 2) % world.height })
         gol.world_add(&world, glider_pattern, {(i * 15) % world.width, (i * 10) % world.height })
         gol.world_add(&world, glider_pattern, {(i * 35) % world.width, (i * 12) % world.height })
