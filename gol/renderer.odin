@@ -585,7 +585,9 @@ global_render_destroy :: proc() {
     defer vk.DeviceWaitIdle(global_renderer.device)
 }
 
-renderer_create_texture :: proc(renderer: Renderer, image: Image) -> Texture {
+renderer_create_texture :: proc{renderer_create_texture_image, renderer_create_texture_bitimage}
+
+renderer_create_texture_image :: proc(renderer: Renderer, image: Image) -> Texture {
     image_data_as_bytes := slice.to_bytes(image.data)
     image_bytes_len := vk.DeviceSize(len(image_data_as_bytes))
     staging_buffer, staging_memory := create_buffer(renderer.physical_device, renderer.device, image_bytes_len, {.TRANSFER_SRC}, {.HOST_VISIBLE, .HOST_COHERENT})
@@ -655,6 +657,80 @@ renderer_create_texture :: proc(renderer: Renderer, image: Image) -> Texture {
 	})
 
     texture_image_view := create_image_view(renderer.device, texture, .R8G8B8A8_UNORM, {.COLOR}, 1)
+
+    return {image = texture, image_view = texture_image_view, image_memory = texture_memory}
+}
+
+renderer_create_texture_bitimage :: proc(renderer: Renderer, image: BitImage) -> Texture {
+    image_data_as_bytes := image.data
+    image_bytes_len := vk.DeviceSize(len(image_data_as_bytes))
+    staging_buffer, staging_memory := create_buffer(renderer.physical_device, renderer.device, image_bytes_len, {.TRANSFER_SRC}, {.HOST_VISIBLE, .HOST_COHERENT})
+    defer destroy_buffer(renderer.device, staging_buffer, staging_memory)
+
+    data: rawptr
+    vk.MapMemory(renderer.device, staging_memory, 0, image_bytes_len, nil, &data)
+    mem.copy(data, raw_data(image_data_as_bytes), int(image_bytes_len))
+    vk.UnmapMemory(renderer.device, staging_memory)
+
+    texture, texture_memory := create_image(renderer.physical_device, renderer.device, u32(image.width), u32(image.height), 1, .R8_UNORM, .OPTIMAL, {.TRANSFER_DST, .SAMPLED, .STORAGE}, {.DEVICE_LOCAL})
+    
+    command_buffer := scoped_single_time_commands(renderer.device, global_command_pools[int(_thread_global_handle)], renderer.main_queue)
+	// transition to transfer_dst_optimal
+    vk.CmdPipelineBarrier(command_buffer, {.TOP_OF_PIPE}, {.TRANSFER}, {}, 0, nil, 0, nil, 1, &vk.ImageMemoryBarrier{
+		sType = .IMAGE_MEMORY_BARRIER,
+		oldLayout = .UNDEFINED,
+		newLayout = .TRANSFER_DST_OPTIMAL,
+		srcQueueFamilyIndex = vk.QUEUE_FAMILY_IGNORED,
+		dstQueueFamilyIndex = vk.QUEUE_FAMILY_IGNORED,
+		image = texture,
+		subresourceRange = {
+			aspectMask = {.COLOR},
+			baseMipLevel = 0,
+			levelCount = 1,
+			baseArrayLayer = 0,
+			layerCount = 1,
+		},
+		srcAccessMask = nil,
+		dstAccessMask = nil,
+	})
+
+    // copy staging buffer to texture
+	vk.CmdCopyBufferToImage(command_buffer, staging_buffer, texture, .TRANSFER_DST_OPTIMAL, 1, &vk.BufferImageCopy{
+		bufferOffset = 0,
+		bufferRowLength = 0,
+		bufferImageHeight = 0,
+
+		imageSubresource = {
+			aspectMask = {.COLOR},
+			mipLevel = 0,
+			baseArrayLayer = 0,
+			layerCount = 1,
+		},
+
+		imageOffset = {0, 0, 0},
+		imageExtent = {u32(image.width), u32(image.height), 1},
+
+	})
+
+    vk.CmdPipelineBarrier(command_buffer, {.TRANSFER}, {.FRAGMENT_SHADER}, {}, 0, nil, 0, nil, 1, &vk.ImageMemoryBarrier{
+		sType = .IMAGE_MEMORY_BARRIER,
+		oldLayout = .TRANSFER_DST_OPTIMAL,
+		newLayout = .SHADER_READ_ONLY_OPTIMAL,
+		srcQueueFamilyIndex = vk.QUEUE_FAMILY_IGNORED,
+		dstQueueFamilyIndex = vk.QUEUE_FAMILY_IGNORED,
+		image = texture,
+		subresourceRange = {
+			aspectMask = {.COLOR},
+			baseMipLevel = 0,
+			levelCount = 1,
+			baseArrayLayer = 0,
+			layerCount = 1,
+		},
+		srcAccessMask = {.TRANSFER_WRITE},
+		dstAccessMask = {.SHADER_READ},
+	})
+
+    texture_image_view := create_image_view(renderer.device, texture, .R8_UNORM, {.COLOR}, 1)
 
     return {image = texture, image_view = texture_image_view, image_memory = texture_memory}
 }
@@ -774,6 +850,11 @@ Renderer :: Render_Context
 Image :: struct {
     width, height: int,
     data: [][4]u8,
+}
+
+BitImage :: struct {
+    width, height: int,
+    data: []u8,
 }
 
 Buffer :: struct {

@@ -6,5 +6,6 @@ layout(location = 0) in vec2 fragTexCoord;
 layout(binding = 0) uniform sampler2D texSampler;
 
 void main() {
-    outColor = vec4(texture(texSampler, fragTexCoord).rgb, 1.0);
+    float value = texture(texSampler, fragTexCoord).r;
+    outColor = vec4(value, value, value, 1.0);
 }

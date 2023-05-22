@@ -4,8 +4,8 @@
 const int rules[18] = int[18](0, 0, 0, 1, 0, 0, 0, 0, 0,
                                 0, 0, 1, 1, 0, 0, 0, 0, 0);
 
-layout(binding = 0, rgba8) uniform readonly image2D inputCells;
-layout(binding = 1, rgba8) uniform writeonly image2D outputCells;
+layout(binding = 0, r8) uniform readonly image2D inputCells;
+layout(binding = 1, r8) uniform writeonly image2D outputCells;
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 

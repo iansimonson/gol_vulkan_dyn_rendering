@@ -38,12 +38,12 @@ simulator_indices := [?]u32{
 }
 
 simulator_create :: proc(world: World) -> (simulator: Simulator) {
-    expanded_grid := make([dynamic][4]u8, len(world.grid), context.temp_allocator)
+    expanded_grid := make([dynamic]u8, len(world.grid), context.temp_allocator)
     for cell, i in world.grid {
         value := u8(255) if cell else 0
-        expanded_grid[i] = {value, value, value, 1}
+        expanded_grid[i] = value
     }
-    image := Image{
+    image := BitImage{
         width = world.width,
         height = world.height,
         data = expanded_grid[:],
