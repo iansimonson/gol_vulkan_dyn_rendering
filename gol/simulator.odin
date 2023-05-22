@@ -6,7 +6,7 @@ import "core:fmt"
 import "core:sync"
 import "core:container/queue"
 
-import vk "vendor:vulkan"
+import vk "shared:vulkan"
 
 queue_lock: sync.Mutex // Todo - lockfree
 global_queue: queue.Queue(Simulator_Event)

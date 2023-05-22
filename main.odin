@@ -6,7 +6,7 @@ import "core:thread"
 import "core:runtime"
 import "core:time"
 
-import "vendor:glfw"
+import "shared:glfw"
 
 global_stop: bool
 

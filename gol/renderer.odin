@@ -8,8 +8,8 @@ import "core:runtime"
 import "core:mem"
 import "core:container/queue"
 
-import vk "vendor:vulkan"
-import "vendor:glfw"
+import vk "shared:vulkan"
+import "shared:glfw"
 
 WriterHandle :: distinct u64
 @thread_local _thread_global_handle: WriterHandle
